@@ -1,0 +1,31 @@
+<?php 
+//get location in kilometers--laravel--jion
+	$nearuser=DB::table('app_users')
+				->select('app_users.fname')
+				->where('app_users.id','=',$request->input('userId'))
+				->first();
+	$users = DB::select("SELECT app_users.firebase_id,app_users.profile_image,app_users.fname,app_users.id,app_users.primary_circle,favorite_location.name,favorite_location.favorite_lat,favorite_location.radius,favorite_location.favorite_long,safety_circle.id as circleId, (
+				6371 * ACOS( COS( RADIANS(  " . $request->input('latitude') . " ) ) * COS( RADIANS(favorite_location.favorite_lat) ) * COS( RADIANS(favorite_location.favorite_long) - RADIANS( " . $request->input('longitude') . " ) ) + 
+								SIN( RADIANS(  " . $request->input('latitude') . " ) ) * SIN( RADIANS(favorite_location.favorite_lat) ) )
+								) `distance` 
+				FROM  `safety_circle` 
+				LEFT JOIN `app_users` ON safety_circle.id=app_users.primary_circle
+				LEFT JOIN `favorite_location` ON FIND_IN_SET(favorite_location.added_by,app_users.id)
+				WHERE FIND_IN_SET($request->input('userId'),safety_circle.users)
+				HAVING  `distance` < favorite_location.radius"); 
+	foreach($users as $userDetails){
+		if($userDetails!=$request->input('userId')){
+			$data = array(
+						'userid' => '',
+						'latitude' =>$request->input('latitude'),
+						'longitude' => $request->input('longitude'),
+						'type' => 'joincircle',
+						'type_id' => '',
+						'redirect' => 'circlelisting',
+						'image' => $userDetails->profile_image,
+						'name' => $userDetails->fname
+					);
+			$message=$nearuser->fname.' has arrived near '.$userDetails->name;
+			$this->sendPushNotificationToGCMSever($data, $userDetails->firebase_id, $message);
+		}
+	}
